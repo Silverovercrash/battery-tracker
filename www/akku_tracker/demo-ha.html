@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Battery & Cell Tracker – storage simulator</title>
+<style>body{font-family:system-ui;margin:12px;background:#f2f5f8}aside{padding:12px;background:#fff3d5}button{padding:8px;margin:8px 0}</style>
+<aside><b>Local storage simulator</b> – no connection to Home Assistant. Data lasts only until this page is reloaded.</aside>
+<button id="fail">Simulate failed saves</button>
+<akku-tracker-card></akku-tracker-card>
+<script type="module">
+import './akku-bridge.js';
+let data={batteries:[],devices:[],history:[]};
+window.simulator={saves:0,gets:0,rejectSaves:false,requests:[]};
+window.simulator.snapshot=()=>structuredClone(data);
+document.querySelector('#fail').onclick=()=>{window.simulator.rejectSaves=!window.simulator.rejectSaves;};
+const card=document.querySelector('akku-tracker-card');
+card.setConfig({});
+card.hass={async callWS(msg){
+  window.simulator.requests.push(structuredClone(msg));
+  if(msg.type==='akku_tracker/get'){window.simulator.gets++;return{data:structuredClone(data)};}
+  if(msg.type==='akku_tracker/save'){
+    if(window.simulator.rejectSaves)throw Error('Simulierter Speicherfehler');
+    data=structuredClone(msg.data);window.simulator.saves++;
+    return{saved:true};
+  }
+  throw Error('Unbekannter Simulationsbefehl');
+}};
+</script></html>

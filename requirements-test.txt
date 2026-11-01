@@ -1,0 +1,1 @@
+# Runtime requirements are supplied by Home Assistant. Core tests use Python stdlib only.

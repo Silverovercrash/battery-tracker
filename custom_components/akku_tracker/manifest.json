@@ -1,0 +1,14 @@
+{
+  "domain": "akku_tracker",
+  "name": "Battery & Cell Tracker",
+  "version": "0.1.0",
+  "documentation": "https://github.com/Silverovercrash/battery-tracker",
+  "issue_tracker": "https://github.com/Silverovercrash/battery-tracker/issues",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": [
+    "@Silverovercrash"
+  ],
+  "iot_class": "local_push",
+  "integration_type": "service"
+}

@@ -1,0 +1,65 @@
+require('node:fs').mkdirSync('test-results',{recursive:true});
+const {chromium}=require('playwright');
+(async()=>{
+ const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH}:{})});
+ const page=await browser.newPage({locale:'en-GB',viewport:{width:1280,height:900}});
+ page.setDefaultTimeout(8000);const errors=[];page.on('pageerror',e=>(errors.push(e.message),console.log('PAGEERROR',e.message)));
+ await page.goto('http://127.0.0.1:18775/akku_tracker/index.html?lang=en');
+ if(!(await page.locator('h1').innerText()).includes('Battery & Cell Tracker'))throw Error('English title missing');
+ for(const tab of ['Create','Batteries','Inventory','History','Analysis','Backup']){
+   await page.getByRole('button',{name:tab,exact:true}).click();
+   if(!(await page.locator('#main').innerText()).trim())throw Error('Empty tab '+tab);
+ }
+ await page.getByRole('button',{name:'Create',exact:true}).click();
+ await page.locator('#create [name=brand]').fill('Geräte & <b>unverändert</b>');
+ await page.locator('#create [name=model]').fill('Sicherung');
+ await page.locator('#create [name=count]').fill('2');
+ await page.locator('#create [name=set]').fill('Batterien');
+ await page.getByLabel('Language / Sprache').selectOption('de');
+ if(await page.locator('#create [name=brand]').inputValue()!=='Geräte & <b>unverändert</b>')throw Error('Language switch changed input');
+ await page.getByRole('button',{name:'Batterien anlegen',exact:true}).click();
+ const before=await page.evaluate(()=>JSON.stringify(state));
+ await page.getByLabel('Language / Sprache').selectOption('en');
+ if(await page.evaluate(()=>JSON.stringify(state))!==before)throw Error('Language switch changed stored data');
+ await page.getByRole('button',{name:'Batteries',exact:true}).click();
+ const text=await page.locator('#main').innerText();
+ if(!text.includes('Geräte & <b>unverändert</b>')||!text.includes('Batterien'))throw Error('User names translated or altered');
+ if(await page.locator('#main b').filter({hasText:'unverändert'}).count())throw Error('User HTML interpreted');
+ await page.getByRole('button',{name:'Devices',exact:true}).click();
+ await page.getByRole('button',{name:'＋ Add device',exact:true}).click();
+ await page.locator('dialog [name=name]').fill('Geräte');
+ await page.locator('dialog [name=placeChoice]').selectOption({label:'Other location / custom text …'});
+ await page.locator('dialog [name=placeCustom]').fill('Sicherung');
+ await page.locator('dialog [name=count]').fill('2');
+ await page.locator('dialog [name=sizeChoice]').selectOption('AA');
+ await page.getByRole('button',{name:'Save device',exact:true}).click();
+ await page.locator('.device-details > summary').click();
+ await page.getByRole('button',{name:'Insert',exact:true}).click();
+ if((await page.locator('dialog').innerText()).includes('Gemeinsamer Messwert'))throw Error('Shared voltage label not translated');
+ const candidate=await page.locator('dialog [name=next] option[value="Batterien"]').innerText();
+ if(!candidate.includes('Batterien')||!candidate.includes('Geräte & <b>unverändert</b>')||!candidate.includes('Sicherung'))throw Error('Selection label translated user-entered data');
+ await page.locator('dialog [name=next]').selectOption('Batterien');
+ await page.locator('dialog [name=new_0_in]').fill('invalid');
+ await page.locator('dialog [name=new_1_in]').fill('1.44');
+ await page.getByRole('button',{name:'Save insertion',exact:true}).click();
+ if(!(await page.locator('#formerror').innerText()).includes('Enter a voltage'))throw Error('Validation error not translated');
+ await page.locator('dialog [name=new_0_in]').fill('1.45');
+ await page.getByRole('button',{name:'Save insertion',exact:true}).click();
+ if(await page.evaluate(()=>state.devices[0].set)!=='Batterien')throw Error('English insertion changed set identity');
+ for(const tab of ['Inventory','History','Analysis','Backup'])await page.getByRole('button',{name:tab,exact:true}).click();
+ await page.evaluate(()=>{
+   state.devices[0].name='Example sensor';state.devices[0].place='Demo room';state.devices[0].set='Demo set';
+   state.batteries.forEach(b=>{b.brand='Example brand';b.model='Sample cells';b.set='Demo set';});store();
+ });
+ await page.getByRole('button',{name:'Devices',exact:true}).click();
+ await page.screenshot({path:'test-results/English-Desktop.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});
+ await page.screenshot({path:'test-results/English-Mobile.png',fullPage:true});
+ if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('English mobile overflow');
+ await page.goto('http://127.0.0.1:18775/akku_tracker/index.html');
+ if(await page.locator('html').getAttribute('lang')!=='en')throw Error('Language preference not retained');
+ if(errors.length)throw Error(errors.join(';'));
+ console.log(JSON.stringify({englishTabs:7,germanSwitch:true,formPreserved:true,inventoryUnchanged:true,userTextProtected:true,englishValidation:true,englishInsert:true,preferencePersisted:true,mobileOverflow:false,errors}));
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
+
